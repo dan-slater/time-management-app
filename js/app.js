@@ -2,11 +2,12 @@ class TaskManager {
     constructor() {
         this.tasks = [];
         this.currentFilter = 'all';
+        this.baseURL = window.location.origin; // Automatically detect server URL
         this.init();
     }
 
-    init() {
-        this.loadTasks();
+    async init() {
+        await this.loadTasks();
         this.bindEvents();
         this.render();
     }
@@ -28,39 +29,77 @@ class TaskManager {
         });
     }
 
-    addTask() {
+    async addTask() {
         const input = document.getElementById('taskInput');
         const text = input.value.trim();
         
         if (!text) return;
 
-        const task = {
-            id: Date.now(),
-            text: text,
-            completed: false,
-            createdAt: new Date().toISOString()
-        };
+        try {
+            const response = await fetch(`${this.baseURL}/api/tasks`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text })
+            });
 
-        this.tasks.push(task);
-        input.value = '';
-        this.saveTasks();
-        this.render();
-    }
-
-    toggleTask(id) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task) {
-            task.completed = !task.completed;
-            task.completedAt = task.completed ? new Date().toISOString() : null;
-            this.saveTasks();
-            this.render();
+            if (response.ok) {
+                const newTask = await response.json();
+                this.tasks.push(newTask);
+                input.value = '';
+                this.render();
+            } else {
+                console.error('Failed to add task');
+                alert('Failed to add task. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error adding task:', error);
+            alert('Error adding task. Please check your connection.');
         }
     }
 
-    deleteTask(id) {
-        this.tasks = this.tasks.filter(t => t.id !== id);
-        this.saveTasks();
-        this.render();
+    async toggleTask(id) {
+        const task = this.tasks.find(t => t.id === id);
+        if (!task) return;
+
+        try {
+            const response = await fetch(`${this.baseURL}/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ completed: !task.completed })
+            });
+
+            if (response.ok) {
+                const updatedTask = await response.json();
+                const taskIndex = this.tasks.findIndex(t => t.id === id);
+                this.tasks[taskIndex] = updatedTask;
+                this.render();
+            } else {
+                console.error('Failed to update task');
+            }
+        } catch (error) {
+            console.error('Error updating task:', error);
+        }
+    }
+
+    async deleteTask(id) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/tasks/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.tasks = this.tasks.filter(t => t.id !== id);
+                this.render();
+            } else {
+                console.error('Failed to delete task');
+            }
+        } catch (error) {
+            console.error('Error deleting task:', error);
+        }
     }
 
     setFilter(filter) {
@@ -120,40 +159,45 @@ class TaskManager {
         document.getElementById('completedTasks').textContent = completed;
     }
 
-    saveTasks() {
-        // For now, save to localStorage (later can be enhanced to save to file)
-        localStorage.setItem('tasks', JSON.stringify(this.tasks));
-        
-        // Also prepare data for potential file export
-        this.exportToFile();
+    async loadTasks() {
+        try {
+            const response = await fetch(`${this.baseURL}/api/tasks`);
+            if (response.ok) {
+                this.tasks = await response.json();
+            } else {
+                console.error('Failed to load tasks from server');
+                // Fallback to localStorage for offline mode
+                this.loadFromLocalStorage();
+            }
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+            // Fallback to localStorage for offline mode
+            this.loadFromLocalStorage();
+        }
     }
 
-    loadTasks() {
+    loadFromLocalStorage() {
         const saved = localStorage.getItem('tasks');
         if (saved) {
             this.tasks = JSON.parse(saved);
         }
     }
 
-    exportToFile() {
-        // Create a downloadable JSON file with tasks
-        const dataStr = JSON.stringify(this.tasks, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    async clearCompleted() {
+        const completedTasks = this.tasks.filter(t => t.completed);
         
-        // This creates a virtual download for the file
-        // In a real GitHub workflow, you'd commit this to the repo
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `tasks-${new Date().toISOString().split('T')[0]}.json`;
-        
-        // For development, we'll just log it
-        console.log('Tasks data ready for export:', dataStr);
-    }
-
-    clearCompleted() {
-        this.tasks = this.tasks.filter(t => !t.completed);
-        this.saveTasks();
-        this.render();
+        try {
+            // Delete all completed tasks
+            const deletePromises = completedTasks.map(task => 
+                fetch(`${this.baseURL}/api/tasks/${task.id}`, { method: 'DELETE' })
+            );
+            
+            await Promise.all(deletePromises);
+            this.tasks = this.tasks.filter(t => !t.completed);
+            this.render();
+        } catch (error) {
+            console.error('Error clearing completed tasks:', error);
+        }
     }
 }
 
