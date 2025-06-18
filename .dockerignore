@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+VISION.md
+DIGITALOCEAN_DEPLOYMENT.md
+CLAUDE.md
+.env
+data/
+server.log
+nohup.out
