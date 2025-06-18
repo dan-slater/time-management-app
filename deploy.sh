@@ -33,7 +33,7 @@ if [ -d ".git" ]; then
     git pull origin main
 else
     echo "Cloning fresh repository..."
-    git clone https://github.com/yourusername/time-management-app.git .
+    git clone https://github.com/dan-slater/time-management-app.git .
 fi
 
 echo "🔐 Setting permissions..."
