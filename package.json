@@ -1,0 +1,13 @@
+{
+  "name": "time-management-app",
+  "version": "1.0.0",
+  "description": "Personal time management web app with flat file storage",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000"
+  },
+  "keywords": ["time-management", "tasks", "productivity"],
+  "author": "Your Name",
+  "license": "MIT"
+}

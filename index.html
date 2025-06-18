@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Time Management</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Personal Time Management</h1>
+        </header>
+        
+        <main>
+            <section class="task-input">
+                <h2>Add New Task</h2>
+                <div class="input-group">
+                    <input type="text" id="taskInput" placeholder="Enter a new task..." />
+                    <button id="addTaskBtn">Add Task</button>
+                </div>
+            </section>
+            
+            <section class="task-list">
+                <h2>Tasks</h2>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="pending">Pending</button>
+                    <button class="filter-btn" data-filter="completed">Completed</button>
+                </div>
+                <ul id="taskList">
+                    <!-- Tasks will be dynamically added here -->
+                </ul>
+            </section>
+            
+            <section class="task-stats">
+                <div class="stats">
+                    <span>Total: <span id="totalTasks">0</span></span>
+                    <span>Pending: <span id="pendingTasks">0</span></span>
+                    <span>Completed: <span id="completedTasks">0</span></span>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="js/app.js"></script>
+</body>
+</html>
