@@ -373,9 +373,7 @@ async function initializeTestApp() {
     await historicalData.init();
 }
 
-// Initialize if running as test
-if (process.env.NODE_ENV === 'test') {
-    initializeTestApp().catch(console.error);
-}
+// Initialize automatically for tests
+initializeTestApp().catch(console.error);
 
 module.exports = app;
