@@ -33,7 +33,7 @@ async function ensureDataFiles() {
         } catch (error) {
             await fs.writeFile(TASKS_FILE, '[]', 'utf8');
         }
-        
+
         // Check if shopping file exists
         try {
             await fs.access(SHOPPING_FILE);
@@ -219,7 +219,7 @@ app.post('/api/shopping', async (req, res) => {
             createdAt: new Date().toISOString()
         };
         items.push(newItem);
-        
+
         const success = await writeShoppingItems(items);
         if (success) {
             await historicalData.logEvent('shopping_item_created', newItem, getRequestMetadata(req));
@@ -237,29 +237,29 @@ app.put('/api/shopping/:id', async (req, res) => {
         const items = await readShoppingItems();
         const itemId = parseInt(req.params.id);
         const itemIndex = items.findIndex(i => i.id === itemId);
-        
+
         if (itemIndex === -1) {
             return res.status(404).json({ error: 'Shopping item not found' });
         }
-        
+
         const oldItem = { ...items[itemIndex] };
         items[itemIndex] = { ...items[itemIndex], ...req.body };
         if (req.body.purchased !== undefined) {
             items[itemIndex].purchasedAt = req.body.purchased ? new Date().toISOString() : null;
         }
-        
+
         const success = await writeShoppingItems(items);
         if (success) {
-            const eventType = req.body.purchased !== undefined ? 
+            const eventType = req.body.purchased !== undefined ?
                 (req.body.purchased ? 'shopping_item_purchased' : 'shopping_item_unpurchased') : 'shopping_item_updated';
-            
+
             await historicalData.logEvent(eventType, {
                 id: itemId,
                 oldData: oldItem,
                 newData: items[itemIndex],
                 changes: req.body
             }, getRequestMetadata(req));
-            
+
             res.json(items[itemIndex]);
         } else {
             res.status(500).json({ error: 'Failed to update shopping item' });
@@ -275,18 +275,18 @@ app.delete('/api/shopping/:id', async (req, res) => {
         const itemId = parseInt(req.params.id);
         const itemToDelete = items.find(i => i.id === itemId);
         const filteredItems = items.filter(i => i.id !== itemId);
-        
+
         if (filteredItems.length === items.length) {
             return res.status(404).json({ error: 'Shopping item not found' });
         }
-        
+
         const success = await writeShoppingItems(filteredItems);
         if (success) {
             await historicalData.logEvent('shopping_item_deleted', {
                 id: itemId,
                 deletedItem: itemToDelete
             }, getRequestMetadata(req));
-            
+
             res.json({ message: 'Shopping item deleted successfully' });
         } else {
             res.status(500).json({ error: 'Failed to delete shopping item' });

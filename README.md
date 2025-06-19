@@ -125,13 +125,45 @@ The app includes a built-in migration system that ensures your historical data r
 - **Backup Safety**: Automatic backups before any migration
 - **Rollback Support**: Can revert to previous data states if needed
 
+## 🚀 CI/CD Pipeline
+
+This project includes a complete CI/CD pipeline with GitHub Actions:
+
+### Continuous Integration
+- **Automated Testing**: Runs on Node.js 18.x and 20.x
+- **Code Quality**: ESLint checks for code standards
+- **Test Coverage**: Jest with coverage reporting
+- **Pull Request Checks**: All PRs must pass tests and linting
+
+### Continuous Deployment
+- **Automatic Deployment**: Pushes to `master` branch auto-deploy to DigitalOcean
+- **Zero-Downtime Deployment**: Uses PM2 for process management
+- **Health Checks**: Verifies deployment success
+- **Rollback Safety**: Data backups before each deployment
+
+### Setup Instructions
+1. See [deployment/digitalocean-setup.md](deployment/digitalocean-setup.md) for server setup
+2. Configure GitHub Secrets (see deployment guide)
+3. Push to master branch to trigger deployment
+
+### Running CI Locally
+```bash
+# Run the same checks as CI
+npm run ci  # Runs lint + tests with coverage
+
+# Individual commands
+npm run lint        # Code quality checks
+npm test           # Run tests
+npm run test:coverage  # Tests with coverage report
+```
+
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. **Important**: Update the historical data system if you modify data structures
-5. Test your changes
+5. Test your changes locally (`npm run ci`)
 6. Commit your changes (`git commit -m 'Add amazing feature'`)
 7. Push to the branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
@@ -141,6 +173,7 @@ The app includes a built-in migration system that ensures your historical data r
 - Increment schema version for data structure changes
 - Add appropriate tests for new functionality
 - Update documentation for API changes
+- Ensure all CI checks pass before merging
 
 ## 📝 License
 
@@ -169,7 +202,7 @@ export DATA_PATH="/mnt/your-volume-path"
 
 **Important**: Without persistent storage, you'll lose all data on each deployment!
 
-See [DIGITALOCEAN_DEPLOYMENT.md](DIGITALOCEAN_DEPLOYMENT.md) for complete setup instructions.
+See [deployment/digitalocean-setup.md](deployment/digitalocean-setup.md) for complete setup instructions.
 
 ### Local Development vs Production
 

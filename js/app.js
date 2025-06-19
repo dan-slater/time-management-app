@@ -90,7 +90,7 @@ class TaskManager {
 
     switchTab(tab) {
         this.currentTab = tab;
-        
+
         // Update tab buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -248,7 +248,7 @@ class TaskManager {
         const quantityInput = document.getElementById('quantityInput');
         const name = nameInput.value.trim();
         const quantity = parseInt(quantityInput.value) || 1;
-        
+
         if (!name) return;
 
         try {
@@ -425,12 +425,12 @@ class TaskManager {
 
     getFilteredShoppingItems() {
         switch (this.currentShoppingFilter) {
-            case 'pending':
-                return this.shoppingItems.filter(i => !i.purchased);
-            case 'purchased':
-                return this.shoppingItems.filter(i => i.purchased);
-            default:
-                return this.shoppingItems;
+        case 'pending':
+            return this.shoppingItems.filter(i => !i.purchased);
+        case 'purchased':
+            return this.shoppingItems.filter(i => i.purchased);
+        default:
+            return this.shoppingItems;
         }
     }
 
