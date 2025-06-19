@@ -1,7 +1,6 @@
 # Dependencies
 node_modules/
 npm-debug.log*
-package-lock.json
 
 # Environment variables
 .env
@@ -22,8 +21,10 @@ pids
 # Data files (will be in persistent volume in production)
 data/
 
-# Test files
-tests/
+# Test data and coverage (generated)
+test-data/
+coverage/
+tests/venv/
 
 # OS generated files
 .DS_Store

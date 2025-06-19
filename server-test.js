@@ -1,3 +1,4 @@
+// Test version of server.js that exports the app without starting the server
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
@@ -5,12 +6,11 @@ const cors = require('cors');
 const HistoricalDataManager = require('./lib/historical-data');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Use persistent data path for production deployments
+// Use test data path for tests
 const DATA_DIR = process.env.DATA_PATH ?
     path.join(process.env.DATA_PATH, 'data') :
-    path.join(__dirname, 'data');
+    path.join(__dirname, 'test-data');
 
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const SHOPPING_FILE = path.join(DATA_DIR, 'shopping.json');
@@ -98,7 +98,7 @@ async function writeShoppingItems(items) {
     }
 }
 
-// API Routes
+// API Routes - Tasks
 app.get('/api/tasks', async (req, res) => {
     try {
         const tasks = await readTasks();
@@ -339,104 +339,13 @@ app.get('/api/history/analytics', async (req, res) => {
     }
 });
 
-app.get('/api/history/snapshots', async (req, res) => {
-    try {
-        const snapshotFiles = await historicalData.getSnapshotFiles();
-        const snapshots = snapshotFiles.map(file => {
-            const parts = file.replace('.json', '').split('_');
-            return {
-                id: parts[parts.length - 1],
-                date: parts[1],
-                filename: file
-            };
-        });
-
-        res.json(snapshots);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to retrieve snapshots' });
-    }
-});
-
-app.get('/api/history/snapshots/:id', async (req, res) => {
-    try {
-        const snapshot = await historicalData.readSnapshot(req.params.id);
-        res.json(snapshot);
-    } catch (error) {
-        res.status(404).json({ error: 'Snapshot not found' });
-    }
-});
-
-app.post('/api/history/snapshots', async (req, res) => {
-    try {
-        const currentData = await historicalData.readCurrentData();
-        const reason = req.body.reason || 'manual';
-        const snapshot = await historicalData.createSnapshot(currentData, reason);
-
-        await historicalData.logEvent('snapshot_created', {
-            snapshotId: snapshot.id,
-            reason
-        }, getRequestMetadata(req));
-
-        res.status(201).json(snapshot);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to create snapshot' });
-    }
-});
-
-app.get('/api/history/export', async (req, res) => {
-    try {
-        const { startDate, endDate, eventTypes, format = 'json' } = req.query;
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        const types = eventTypes ? eventTypes.split(',') : null;
-
-        const exportData = await historicalData.exportForAnalysis(start, end, types);
-
-        if (format === 'csv') {
-            // Convert to CSV format for analysis tools
-            const csv = convertToCSV(exportData.events);
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', 'attachment; filename="task_history.csv"');
-            res.send(csv);
-        } else {
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Content-Disposition', 'attachment; filename="task_history.json"');
-            res.json(exportData);
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to export data' });
-    }
-});
-
-// Helper function to convert events to CSV
-function convertToCSV(events) {
-    if (!events || events.length === 0) return '';
-
-    const headers = ['id', 'type', 'timestamp', 'data', 'version', 'userAgent', 'ip'];
-    const csvRows = [headers.join(',')];
-
-    events.forEach(event => {
-        const row = [
-            event.id,
-            event.type,
-            event.timestamp,
-            JSON.stringify(event.data).replace(/"/g, '""'),
-            event.version,
-            event.metadata?.userAgent || '',
-            event.metadata?.ip || ''
-        ];
-        csvRows.push(row.map(field => `"${field}"`).join(','));
-    });
-
-    return csvRows.join('\n');
-}
-
-// Health check endpoint for DigitalOcean monitoring
+// Health check endpoint
 app.get('/health', async (req, res) => {
     try {
         // Check if we can read tasks and shopping items (tests file system access)
         await readTasks();
         await readShoppingItems();
+
         // Check if historical data system is working
         const events = await historicalData.readEvents();
 
@@ -458,29 +367,13 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// Start server
-async function startServer() {
+// Initialize data files and historical system for tests
+async function initializeTestApp() {
     await ensureDataFiles();
     await historicalData.init();
-
-    // Log server start event
-    await historicalData.logEvent('server_started', {
-        port: PORT,
-        version: '1.0.0'
-    });
-
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-        console.log(`Data directory: ${DATA_DIR}`);
-        console.log('Historical data system initialized');
-
-        // Log startup info for debugging deployments
-        if (process.env.DATA_PATH) {
-            console.log(`✅ Using persistent storage: ${process.env.DATA_PATH}`);
-        } else {
-            console.log('⚠️  Using local storage - data will be lost on deployment!');
-        }
-    });
 }
 
-startServer();
+// Initialize automatically for tests
+initializeTestApp().catch(console.error);
+
+module.exports = app;

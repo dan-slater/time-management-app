@@ -7,7 +7,7 @@ const config = {
         type: 'file',
         dataPath: './data'
     },
-    
+
     production: {
         type: 'postgres',
         databaseUrl: process.env.DATABASE_URL,
@@ -15,7 +15,7 @@ const config = {
             rejectUnauthorized: false // DigitalOcean managed databases
         }
     },
-    
+
     // Fallback to file storage if database fails
     fallback: {
         type: 'file',
