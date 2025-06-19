@@ -48,7 +48,7 @@ class TaskManager {
     toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        
+
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('theme', newTheme);
         this.updateThemeIcon(newTheme);
@@ -57,7 +57,7 @@ class TaskManager {
     async addTask() {
         const input = document.getElementById('taskInput');
         const text = input.value.trim();
-        
+
         if (!text) return;
 
         try {
@@ -137,12 +137,12 @@ class TaskManager {
 
     getFilteredTasks() {
         switch (this.currentFilter) {
-            case 'pending':
-                return this.tasks.filter(t => !t.completed);
-            case 'completed':
-                return this.tasks.filter(t => t.completed);
-            default:
-                return this.tasks;
+        case 'pending':
+            return this.tasks.filter(t => !t.completed);
+        case 'completed':
+            return this.tasks.filter(t => t.completed);
+        default:
+            return this.tasks;
         }
     }
 
@@ -210,13 +210,13 @@ class TaskManager {
 
     async clearCompleted() {
         const completedTasks = this.tasks.filter(t => t.completed);
-        
+
         try {
             // Delete all completed tasks
-            const deletePromises = completedTasks.map(task => 
+            const deletePromises = completedTasks.map(task =>
                 fetch(`${this.baseURL}/api/tasks/${task.id}`, { method: 'DELETE' })
             );
-            
+
             await Promise.all(deletePromises);
             this.tasks = this.tasks.filter(t => !t.completed);
             this.render();
