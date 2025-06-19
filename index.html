@@ -13,36 +13,75 @@
     <div class="container">
         <header>
             <h1>Personal Time Management</h1>
+            <nav class="tab-navigation">
+                <button class="tab-btn active" data-tab="tasks">Tasks</button>
+                <button class="tab-btn" data-tab="shopping">Shopping List</button>
+            </nav>
         </header>
         
         <main>
-            <section class="task-input">
-                <h2>Add New Task</h2>
-                <div class="input-group">
-                    <input type="text" id="taskInput" placeholder="Enter a new task..." />
-                    <button id="addTaskBtn">Add Task</button>
-                </div>
-            </section>
-            
-            <section class="task-list">
-                <h2>Tasks</h2>
-                <div class="filter-buttons">
-                    <button class="filter-btn active" data-filter="all">All</button>
-                    <button class="filter-btn" data-filter="pending">Pending</button>
-                    <button class="filter-btn" data-filter="completed">Completed</button>
-                </div>
-                <ul id="taskList">
-                    <!-- Tasks will be dynamically added here -->
-                </ul>
-            </section>
-            
-            <section class="task-stats">
-                <div class="stats">
-                    <span>Total: <span id="totalTasks">0</span></span>
-                    <span>Pending: <span id="pendingTasks">0</span></span>
-                    <span>Completed: <span id="completedTasks">0</span></span>
-                </div>
-            </section>
+            <!-- Tasks Tab Content -->
+            <div id="tasks-tab" class="tab-content active">
+                <section class="task-input">
+                    <h2>Add New Task</h2>
+                    <div class="input-group">
+                        <input type="text" id="taskInput" placeholder="Enter a new task..." />
+                        <button id="addTaskBtn">Add Task</button>
+                    </div>
+                </section>
+                
+                <section class="task-list">
+                    <h2>Tasks</h2>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="pending">Pending</button>
+                        <button class="filter-btn" data-filter="completed">Completed</button>
+                    </div>
+                    <ul id="taskList">
+                        <!-- Tasks will be dynamically added here -->
+                    </ul>
+                </section>
+                
+                <section class="task-stats">
+                    <div class="stats">
+                        <span>Total: <span id="totalTasks">0</span></span>
+                        <span>Pending: <span id="pendingTasks">0</span></span>
+                        <span>Completed: <span id="completedTasks">0</span></span>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Shopping List Tab Content -->
+            <div id="shopping-tab" class="tab-content">
+                <section class="shopping-input">
+                    <h2>Add Shopping Item</h2>
+                    <div class="input-group">
+                        <input type="text" id="shoppingInput" placeholder="Enter a shopping item..." />
+                        <input type="number" id="quantityInput" placeholder="Qty" min="1" value="1" />
+                        <button id="addShoppingBtn">Add Item</button>
+                    </div>
+                </section>
+                
+                <section class="shopping-list">
+                    <h2>Shopping List</h2>
+                    <div class="filter-buttons">
+                        <button class="shopping-filter-btn active" data-filter="all">All</button>
+                        <button class="shopping-filter-btn" data-filter="pending">Need to Buy</button>
+                        <button class="shopping-filter-btn" data-filter="purchased">Purchased</button>
+                    </div>
+                    <ul id="shoppingList">
+                        <!-- Shopping items will be dynamically added here -->
+                    </ul>
+                </section>
+                
+                <section class="shopping-stats">
+                    <div class="stats">
+                        <span>Total: <span id="totalItems">0</span></span>
+                        <span>Need to Buy: <span id="pendingItems">0</span></span>
+                        <span>Purchased: <span id="purchasedItems">0</span></span>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
     

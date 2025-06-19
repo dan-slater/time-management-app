@@ -13,6 +13,7 @@ const DATA_DIR = process.env.DATA_PATH ?
     path.join(__dirname, 'data');
 
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
+const SHOPPING_FILE = path.join(DATA_DIR, 'shopping.json');
 const historicalData = new HistoricalDataManager(DATA_DIR);
 
 // Middleware
@@ -20,16 +21,27 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
-// Ensure data directory and tasks file exist
-async function ensureTasksFile() {
+// Ensure data directory and data files exist
+async function ensureDataFiles() {
     try {
         // Ensure data directory exists
         await fs.mkdir(DATA_DIR, { recursive: true });
 
         // Check if tasks file exists
-        await fs.access(TASKS_FILE);
+        try {
+            await fs.access(TASKS_FILE);
+        } catch (error) {
+            await fs.writeFile(TASKS_FILE, '[]', 'utf8');
+        }
+        
+        // Check if shopping file exists
+        try {
+            await fs.access(SHOPPING_FILE);
+        } catch (error) {
+            await fs.writeFile(SHOPPING_FILE, '[]', 'utf8');
+        }
     } catch (error) {
-        await fs.writeFile(TASKS_FILE, '[]', 'utf8');
+        console.error('Error ensuring data files:', error);
     }
 }
 
@@ -60,6 +72,28 @@ async function writeTasks(tasks) {
         return true;
     } catch (error) {
         console.error('Error writing tasks:', error);
+        return false;
+    }
+}
+
+// Read shopping items from file
+async function readShoppingItems() {
+    try {
+        const data = await fs.readFile(SHOPPING_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error reading shopping items:', error);
+        return [];
+    }
+}
+
+// Write shopping items to file
+async function writeShoppingItems(items) {
+    try {
+        await fs.writeFile(SHOPPING_FILE, JSON.stringify(items, null, 2), 'utf8');
+        return true;
+    } catch (error) {
+        console.error('Error writing shopping items:', error);
         return false;
     }
 }
@@ -161,6 +195,104 @@ app.delete('/api/tasks/:id', async (req, res) => {
         }
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete task' });
+    }
+});
+
+// Shopping List API Routes
+app.get('/api/shopping', async (req, res) => {
+    try {
+        const items = await readShoppingItems();
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load shopping items' });
+    }
+});
+
+app.post('/api/shopping', async (req, res) => {
+    try {
+        const items = await readShoppingItems();
+        const newItem = {
+            id: Date.now(),
+            name: req.body.name,
+            quantity: req.body.quantity || 1,
+            purchased: false,
+            createdAt: new Date().toISOString()
+        };
+        items.push(newItem);
+        
+        const success = await writeShoppingItems(items);
+        if (success) {
+            await historicalData.logEvent('shopping_item_created', newItem, getRequestMetadata(req));
+            res.status(201).json(newItem);
+        } else {
+            res.status(500).json({ error: 'Failed to save shopping item' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create shopping item' });
+    }
+});
+
+app.put('/api/shopping/:id', async (req, res) => {
+    try {
+        const items = await readShoppingItems();
+        const itemId = parseInt(req.params.id);
+        const itemIndex = items.findIndex(i => i.id === itemId);
+        
+        if (itemIndex === -1) {
+            return res.status(404).json({ error: 'Shopping item not found' });
+        }
+        
+        const oldItem = { ...items[itemIndex] };
+        items[itemIndex] = { ...items[itemIndex], ...req.body };
+        if (req.body.purchased !== undefined) {
+            items[itemIndex].purchasedAt = req.body.purchased ? new Date().toISOString() : null;
+        }
+        
+        const success = await writeShoppingItems(items);
+        if (success) {
+            const eventType = req.body.purchased !== undefined ? 
+                (req.body.purchased ? 'shopping_item_purchased' : 'shopping_item_unpurchased') : 'shopping_item_updated';
+            
+            await historicalData.logEvent(eventType, {
+                id: itemId,
+                oldData: oldItem,
+                newData: items[itemIndex],
+                changes: req.body
+            }, getRequestMetadata(req));
+            
+            res.json(items[itemIndex]);
+        } else {
+            res.status(500).json({ error: 'Failed to update shopping item' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update shopping item' });
+    }
+});
+
+app.delete('/api/shopping/:id', async (req, res) => {
+    try {
+        const items = await readShoppingItems();
+        const itemId = parseInt(req.params.id);
+        const itemToDelete = items.find(i => i.id === itemId);
+        const filteredItems = items.filter(i => i.id !== itemId);
+        
+        if (filteredItems.length === items.length) {
+            return res.status(404).json({ error: 'Shopping item not found' });
+        }
+        
+        const success = await writeShoppingItems(filteredItems);
+        if (success) {
+            await historicalData.logEvent('shopping_item_deleted', {
+                id: itemId,
+                deletedItem: itemToDelete
+            }, getRequestMetadata(req));
+            
+            res.json({ message: 'Shopping item deleted successfully' });
+        } else {
+            res.status(500).json({ error: 'Failed to delete shopping item' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete shopping item' });
     }
 });
 
@@ -302,9 +434,9 @@ function convertToCSV(events) {
 // Health check endpoint for DigitalOcean monitoring
 app.get('/health', async (req, res) => {
     try {
-        // Check if we can read tasks (tests file system access)
+        // Check if we can read tasks and shopping items (tests file system access)
         await readTasks();
-
+        await readShoppingItems();
         // Check if historical data system is working
         const events = await historicalData.readEvents();
 
@@ -314,6 +446,7 @@ app.get('/health', async (req, res) => {
             version: '1.0.0',
             dataDir: DATA_DIR,
             tasksCount: (await readTasks()).length,
+            shoppingItemsCount: (await readShoppingItems()).length,
             eventsCount: events.length
         });
     } catch (error) {
@@ -327,7 +460,7 @@ app.get('/health', async (req, res) => {
 
 // Start server
 async function startServer() {
-    await ensureTasksFile();
+    await ensureDataFiles();
     await historicalData.init();
 
     // Log server start event
