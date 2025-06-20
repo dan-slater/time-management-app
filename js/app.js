@@ -2,9 +2,13 @@ class TaskManager {
     constructor() {
         this.tasks = [];
         this.shoppingItems = [];
+        this.timeBlocks = [];
         this.currentFilter = 'all';
         this.currentShoppingFilter = 'all';
         this.currentTab = 'tasks';
+        this.currentCalendarView = 'week';
+        this.currentCalendarDate = new Date();
+        this.editingTimeBlock = null;
         this.baseURL = window.location.origin;
         this.init();
     }
@@ -13,6 +17,7 @@ class TaskManager {
         this.initTheme();
         await this.loadTasks();
         await this.loadShoppingItems();
+        await this.loadTimeBlocks();
         this.bindEvents();
         this.render();
     }
@@ -41,6 +46,12 @@ class TaskManager {
         const shoppingInput = document.getElementById('shoppingInput');
         const quantityInput = document.getElementById('quantityInput');
         const shoppingFilterBtns = document.querySelectorAll('.shopping-filter-btn');
+
+        // Calendar events
+        const addTimeBlockBtn = document.getElementById('addTimeBlockBtn');
+        const prevWeekBtn = document.getElementById('prevWeek');
+        const nextWeekBtn = document.getElementById('nextWeek');
+        const viewBtns = document.querySelectorAll('.view-btn');
 
         // Tab events
         const tabBtns = document.querySelectorAll('.tab-btn');
@@ -77,6 +88,25 @@ class TaskManager {
         });
 
         themeToggle.addEventListener('click', () => this.toggleTheme());
+
+        // Calendar event listeners
+        if (addTimeBlockBtn) {
+            addTimeBlockBtn.addEventListener('click', () => this.showTimeBlockModal());
+        }
+        
+        if (prevWeekBtn) {
+            prevWeekBtn.addEventListener('click', () => this.navigateCalendar(-1));
+        }
+        
+        if (nextWeekBtn) {
+            nextWeekBtn.addEventListener('click', () => this.navigateCalendar(1));
+        }
+
+        viewBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.setCalendarView(e.target.dataset.view);
+            });
+        });
     }
 
     toggleTheme() {
@@ -439,6 +469,10 @@ class TaskManager {
             this.renderTasks();
         } else if (this.currentTab === 'shopping') {
             this.renderShoppingItems();
+        } else if (this.currentTab === 'calendar') {
+            this.renderCalendar();
+            this.updateCalendarPeriod();
+            this.updateCalendarStats();
         }
         this.updateStats();
     }
@@ -594,7 +628,477 @@ class TaskManager {
             console.error('Error clearing completed tasks:', error);
         }
     }
+
+    // ===== TIME BLOCKS API METHODS =====
+    async loadTimeBlocks() {
+        try {
+            const response = await fetch(`${this.baseURL}/api/timeblocks`);
+            if (response.ok) {
+                this.timeBlocks = await response.json();
+            } else {
+                console.error('Failed to load time blocks');
+                this.timeBlocks = [];
+            }
+        } catch (error) {
+            console.error('Error loading time blocks:', error);
+            this.timeBlocks = [];
+        }
+    }
+
+    async addTimeBlock(timeBlockData) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/timeblocks`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(timeBlockData)
+            });
+
+            if (response.ok) {
+                const newTimeBlock = await response.json();
+                this.timeBlocks.push(newTimeBlock);
+                this.render();
+                return newTimeBlock;
+            } else {
+                console.error('Failed to add time block');
+                alert('Failed to add time block. Please try again.');
+                return null;
+            }
+        } catch (error) {
+            console.error('Error adding time block:', error);
+            alert('Error adding time block. Please check your connection.');
+            return null;
+        }
+    }
+
+    async updateTimeBlock(id, updates) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/timeblocks/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updates)
+            });
+
+            if (response.ok) {
+                const updatedTimeBlock = await response.json();
+                const blockIndex = this.timeBlocks.findIndex(b => b.id === id);
+                if (blockIndex !== -1) {
+                    this.timeBlocks[blockIndex] = updatedTimeBlock;
+                }
+                this.render();
+                return updatedTimeBlock;
+            } else {
+                console.error('Failed to update time block');
+                return null;
+            }
+        } catch (error) {
+            console.error('Error updating time block:', error);
+            return null;
+        }
+    }
+
+    async deleteTimeBlock(id) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/timeblocks/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.timeBlocks = this.timeBlocks.filter(b => b.id !== id);
+                this.render();
+                return true;
+            } else {
+                console.error('Failed to delete time block');
+                return false;
+            }
+        } catch (error) {
+            console.error('Error deleting time block:', error);
+            return false;
+        }
+    }
+
+    // ===== CALENDAR UI METHODS =====
+    setCalendarView(view) {
+        this.currentCalendarView = view;
+        
+        // Update view buttons
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === view);
+        });
+
+        this.renderCalendar();
+        this.updateCalendarStats();
+    }
+
+    navigateCalendar(direction) {
+        if (this.currentCalendarView === 'week') {
+            this.currentCalendarDate.setDate(this.currentCalendarDate.getDate() + (7 * direction));
+        } else if (this.currentCalendarView === 'day') {
+            this.currentCalendarDate.setDate(this.currentCalendarDate.getDate() + direction);
+        }
+        
+        this.renderCalendar();
+        this.updateCalendarPeriod();
+    }
+
+    updateCalendarPeriod() {
+        const currentWeekSpan = document.getElementById('currentWeek');
+        if (!currentWeekSpan) return;
+
+        if (this.currentCalendarView === 'week') {
+            const startOfWeek = this.getStartOfWeek(this.currentCalendarDate);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            
+            currentWeekSpan.textContent = `Week of ${this.formatDate(startOfWeek, 'MMM d')} - ${this.formatDate(endOfWeek, 'MMM d, yyyy')}`;
+        } else {
+            currentWeekSpan.textContent = this.formatDate(this.currentCalendarDate, 'MMMM d, yyyy');
+        }
+    }
+
+    getStartOfWeek(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        return new Date(d.setDate(diff));
+    }
+
+    formatDate(date, format = 'yyyy-MM-dd') {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        
+        if (format === 'yyyy-MM-dd') {
+            return `${year}-${month}-${day}`;
+        } else if (format === 'MMM d') {
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else if (format === 'MMM d, yyyy') {
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } else if (format === 'MMMM d, yyyy') {
+            return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+        return d.toLocaleDateString();
+    }
+
+    renderCalendar() {
+        const calendarGrid = document.getElementById('calendarGrid');
+        if (!calendarGrid) return;
+
+        if (this.currentCalendarView === 'week') {
+            this.renderWeekView(calendarGrid);
+        } else {
+            this.renderDayView(calendarGrid);
+        }
+    }
+
+    renderWeekView(container) {
+        container.className = 'calendar-grid';
+        const startOfWeek = this.getStartOfWeek(this.currentCalendarDate);
+        
+        // Time slots (24 hours)
+        const timeSlots = [];
+        for (let hour = 0; hour < 24; hour++) {
+            timeSlots.push(`${String(hour).padStart(2, '0')}:00`);
+        }
+
+        // Days of the week
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        
+        let html = '';
+        
+        // Header row
+        html += '<div class="time-slot"></div>'; // Empty corner
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(startOfWeek);
+            date.setDate(date.getDate() + i);
+            html += `<div class="day-header">
+                ${days[i]}<br>
+                <span style="font-size: 0.8em; opacity: 0.7;">${date.getDate()}</span>
+            </div>`;
+        }
+
+        // Time rows
+        timeSlots.forEach(timeSlot => {
+            html += `<div class="time-slot">${timeSlot}</div>`;
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(startOfWeek);
+                date.setDate(date.getDate() + i);
+                const dateStr = this.formatDate(date);
+                const hour = parseInt(timeSlot.split(':')[0]);
+                
+                html += `<div class="calendar-cell" 
+                    data-date="${dateStr}" 
+                    data-hour="${hour}"
+                    onclick="taskManager.handleCellClick('${dateStr}', ${hour})">
+                    ${this.renderTimeBlocksForCell(dateStr, hour)}
+                </div>`;
+            }
+        });
+
+        container.innerHTML = html;
+    }
+
+    renderDayView(container) {
+        container.className = 'calendar-grid day-view';
+        const currentDate = this.formatDate(this.currentCalendarDate);
+        
+        // Time slots (24 hours)
+        const timeSlots = [];
+        for (let hour = 0; hour < 24; hour++) {
+            timeSlots.push(`${String(hour).padStart(2, '0')}:00`);
+        }
+
+        let html = '';
+        
+        // Header row
+        html += '<div class="time-slot"></div>'; // Empty corner
+        html += `<div class="day-header">
+            ${this.formatDate(this.currentCalendarDate, 'MMMM d, yyyy')}
+        </div>`;
+
+        // Time rows
+        timeSlots.forEach(timeSlot => {
+            html += `<div class="time-slot">${timeSlot}</div>`;
+            const hour = parseInt(timeSlot.split(':')[0]);
+            
+            html += `<div class="calendar-cell" 
+                data-date="${currentDate}" 
+                data-hour="${hour}"
+                onclick="taskManager.handleCellClick('${currentDate}', ${hour})">
+                ${this.renderTimeBlocksForCell(currentDate, hour)}
+            </div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    renderTimeBlocksForCell(dateStr, hour) {
+        const blocksForCell = this.timeBlocks.filter(block => {
+            const blockDate = block.startTime.split('T')[0];
+            const blockHour = parseInt(block.startTime.split('T')[1].split(':')[0]);
+            return blockDate === dateStr && blockHour === hour;
+        });
+
+        return blocksForCell.map(block => {
+            const startTime = new Date(block.startTime);
+            const endTime = new Date(block.endTime);
+            const duration = (endTime - startTime) / (1000 * 60); // minutes
+            const height = Math.min(duration, 60); // Max 1 hour per cell
+            
+            return `<div class="time-block ${block.completed ? 'completed' : ''}" 
+                style="background-color: ${block.color}; height: ${height}%;"
+                onclick="taskManager.editTimeBlock(${block.id}); event.stopPropagation();">
+                <div class="time-block-title">${block.title}</div>
+                <div class="time-block-time">${this.formatTime(startTime)} - ${this.formatTime(endTime)}</div>
+            </div>`;
+        }).join('');
+    }
+
+    formatTime(date) {
+        return date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+        });
+    }
+
+    handleCellClick(dateStr, hour) {
+        const startTime = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00`);
+        const endTime = new Date(startTime);
+        endTime.setHours(endTime.getHours() + 1);
+        
+        this.showTimeBlockModal({
+            date: dateStr,
+            startTime: startTime.toISOString().slice(0, 16),
+            endTime: endTime.toISOString().slice(0, 16)
+        });
+    }
+
+    showTimeBlockModal(defaults = {}) {
+        const modal = this.createTimeBlockModal(defaults);
+        document.body.appendChild(modal);
+        
+        // Focus first input
+        const firstInput = modal.querySelector('input[name="title"]');
+        if (firstInput) firstInput.focus();
+    }
+
+    createTimeBlockModal(defaults = {}) {
+        const modal = document.createElement('div');
+        modal.className = 'time-block-modal';
+        modal.innerHTML = `
+            <div class="time-block-form">
+                <h3>${this.editingTimeBlock ? 'Edit Time Block' : 'Add Time Block'}</h3>
+                <form id="timeBlockForm">
+                    <div class="form-group">
+                        <label for="blockTitle">Title:</label>
+                        <input type="text" id="blockTitle" name="title" required 
+                            value="${defaults.title || ''}" placeholder="Enter time block title">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="blockDescription">Description:</label>
+                        <textarea id="blockDescription" name="description" 
+                            placeholder="Optional description">${defaults.description || ''}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="blockStartTime">Start Time:</label>
+                        <input type="datetime-local" id="blockStartTime" name="startTime" required
+                            value="${defaults.startTime || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="blockEndTime">End Time:</label>
+                        <input type="datetime-local" id="blockEndTime" name="endTime" required
+                            value="${defaults.endTime || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="blockTask">Assign Task (Optional):</label>
+                        <select id="blockTask" name="taskId">
+                            <option value="">No task assigned</option>
+                            ${this.tasks.filter(t => !t.completed).map(task => 
+                                `<option value="${task.id}" ${defaults.taskId === task.id ? 'selected' : ''}>
+                                    ${task.text}
+                                </option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="blockColor">Color:</label>
+                        <input type="color" id="blockColor" name="color" 
+                            value="${defaults.color || '#007aff'}">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-cancel" onclick="taskManager.closeTimeBlockModal()">Cancel</button>
+                        ${this.editingTimeBlock ? 
+                            `<button type="button" class="btn-delete" onclick="taskManager.deleteCurrentTimeBlock()">Delete</button>` : ''
+                        }
+                        <button type="submit" class="btn-save">${this.editingTimeBlock ? 'Update' : 'Save'}</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Add form submit handler
+        const form = modal.querySelector('#timeBlockForm');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveTimeBlock(form);
+        });
+
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeTimeBlockModal();
+            }
+        });
+
+        return modal;
+    }
+
+    async saveTimeBlock(form) {
+        const formData = new FormData(form);
+        const timeBlockData = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            startTime: formData.get('startTime'),
+            endTime: formData.get('endTime'),
+            date: formData.get('startTime').split('T')[0],
+            taskId: formData.get('taskId') || null,
+            color: formData.get('color')
+        };
+
+        let success = false;
+        if (this.editingTimeBlock) {
+            success = await this.updateTimeBlock(this.editingTimeBlock.id, timeBlockData);
+        } else {
+            success = await this.addTimeBlock(timeBlockData);
+        }
+
+        if (success) {
+            this.closeTimeBlockModal();
+        }
+    }
+
+    editTimeBlock(id) {
+        const timeBlock = this.timeBlocks.find(b => b.id === id);
+        if (!timeBlock) return;
+
+        this.editingTimeBlock = timeBlock;
+        
+        const defaults = {
+            title: timeBlock.title,
+            description: timeBlock.description,
+            startTime: timeBlock.startTime.slice(0, 16),
+            endTime: timeBlock.endTime.slice(0, 16),
+            taskId: timeBlock.taskId,
+            color: timeBlock.color
+        };
+        
+        this.showTimeBlockModal(defaults);
+    }
+
+    async deleteCurrentTimeBlock() {
+        if (!this.editingTimeBlock) return;
+        
+        if (confirm('Are you sure you want to delete this time block?')) {
+            const success = await this.deleteTimeBlock(this.editingTimeBlock.id);
+            if (success) {
+                this.closeTimeBlockModal();
+            }
+        }
+    }
+
+    closeTimeBlockModal() {
+        const modal = document.querySelector('.time-block-modal');
+        if (modal) {
+            modal.remove();
+        }
+        this.editingTimeBlock = null;
+    }
+
+    async toggleTimeBlock(id) {
+        const timeBlock = this.timeBlocks.find(b => b.id === id);
+        if (!timeBlock) return;
+
+        await this.updateTimeBlock(id, { completed: !timeBlock.completed });
+    }
+
+    updateCalendarStats() {
+        const totalBlocksSpan = document.getElementById('totalBlocks');
+        const weekBlocksSpan = document.getElementById('weekBlocks');
+        const completedBlocksSpan = document.getElementById('completedBlocks');
+
+        if (totalBlocksSpan) {
+            totalBlocksSpan.textContent = this.timeBlocks.length;
+        }
+
+        if (weekBlocksSpan) {
+            const startOfWeek = this.getStartOfWeek(this.currentCalendarDate);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            
+            const weekBlocks = this.timeBlocks.filter(block => {
+                const blockDate = new Date(block.startTime);
+                return blockDate >= startOfWeek && blockDate <= endOfWeek;
+            });
+            
+            weekBlocksSpan.textContent = weekBlocks.length;
+        }
+
+        if (completedBlocksSpan) {
+            const completedBlocks = this.timeBlocks.filter(block => block.completed);
+            completedBlocksSpan.textContent = completedBlocks.length;
+        }
+    }
 }
 
-// Initialize the app
 const taskManager = new TaskManager();
