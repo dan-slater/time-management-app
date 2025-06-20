@@ -43,56 +43,58 @@ class GDriveBackup:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_name = f"time-management-backup-{timestamp}"
         
-        with tempfile.TemporaryDirectory() as temp_dir:
-            backup_path = Path(temp_dir) / backup_name
-            backup_path.mkdir()
-            
-            print("📦 Creating backup package...")
-            
-            # Copy data files
-            data_path = Path(data_dir)
-            files_copied = []
-            
-            for file_name in ['tasks.json', 'events.json', 'shopping.json']:
-                src_file = data_path / file_name
-                if src_file.exists():
-                    shutil.copy2(src_file, backup_path / file_name)
-                    files_copied.append(file_name)
-                else:
-                    # Create empty file for missing data
-                    (backup_path / file_name).write_text('[]')
-                    files_copied.append(f"{file_name} (empty)")
-            
-            # Copy snapshots directory
-            snapshots_src = data_path / "snapshots"
-            if snapshots_src.exists():
-                shutil.copytree(snapshots_src, backup_path / "snapshots")
-                files_copied.append("snapshots/")
+        # Create temporary directory in /tmp with proper cleanup
+        temp_dir = tempfile.mkdtemp(prefix="backup_")
+        backup_path = Path(temp_dir) / backup_name
+        backup_path.mkdir()
+        
+        print("📦 Creating backup package...")
+        
+        # Copy data files
+        data_path = Path(data_dir)
+        files_copied = []
+        
+        for file_name in ['tasks.json', 'events.json', 'shopping.json']:
+            src_file = data_path / file_name
+            if src_file.exists():
+                shutil.copy2(src_file, backup_path / file_name)
+                files_copied.append(file_name)
             else:
-                (backup_path / "snapshots").mkdir()
-                files_copied.append("snapshots/ (empty)")
-            
-            # Create backup metadata
-            backup_info = {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "hostname": os.uname().nodename,
-                "backup_type": "deployment",
-                "files_included": files_copied,
-                "retention_days": self.retention_days,
-                "data_directory": str(data_dir)
-            }
-            
-            (backup_path / "backup-info.json").write_text(
-                json.dumps(backup_info, indent=2)
-            )
-            
-            # Create compressed archive
-            archive_path = Path(temp_dir) / f"{backup_name}.tar.gz"
-            with tarfile.open(archive_path, "w:gz") as tar:
-                tar.add(backup_path, arcname=backup_name)
-            
-            print(f"📁 Backup created: {archive_path} ({archive_path.stat().st_size // 1024}KB)")
-            return archive_path, backup_info
+                # Create empty file for missing data
+                (backup_path / file_name).write_text('[]')
+                files_copied.append(f"{file_name} (empty)")
+        
+        # Copy snapshots directory
+        snapshots_src = data_path / "snapshots"
+        if snapshots_src.exists():
+            shutil.copytree(snapshots_src, backup_path / "snapshots")
+            files_copied.append("snapshots/")
+        else:
+            (backup_path / "snapshots").mkdir()
+            files_copied.append("snapshots/ (empty)")
+        
+        # Create backup metadata
+        backup_info = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "hostname": os.uname().nodename,
+            "backup_type": "deployment",
+            "files_included": files_copied,
+            "retention_days": self.retention_days,
+            "data_directory": str(data_dir),
+            "temp_dir": temp_dir  # Store for cleanup later
+        }
+        
+        (backup_path / "backup-info.json").write_text(
+            json.dumps(backup_info, indent=2)
+        )
+        
+        # Create compressed archive
+        archive_path = Path(temp_dir) / f"{backup_name}.tar.gz"
+        with tarfile.open(archive_path, "w:gz") as tar:
+            tar.add(backup_path, arcname=backup_name)
+        
+        print(f"📁 Backup created: {archive_path} ({archive_path.stat().st_size // 1024}KB)")
+        return archive_path, backup_info
 
     def get_or_create_backup_folder(self):
         """Get or create the backup folder in Google Drive"""
@@ -204,9 +206,11 @@ class GDriveBackup:
         """Run complete backup process"""
         print("🔄 Starting Google Drive backup...")
         
+        temp_dir = None
         try:
             # Create backup package
             archive_path, backup_info = self.create_backup_package(data_dir)
+            temp_dir = backup_info.get('temp_dir')
             
             # Upload to Google Drive
             upload_success = self.upload_to_gdrive(archive_path, backup_info)
@@ -221,6 +225,14 @@ class GDriveBackup:
         except Exception as e:
             print(f"❌ Backup failed: {e}")
             return False
+        finally:
+            # Clean up temporary directory
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                    print(f"🧹 Cleaned up temporary directory: {temp_dir}")
+                except Exception as e:
+                    print(f"⚠️  Could not clean up temp dir {temp_dir}: {e}")
 
 def main():
     import sys
