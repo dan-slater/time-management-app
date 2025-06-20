@@ -65,6 +65,17 @@ jobs:
         npm ci --omit=dev
         tar -czf ../app.tar.gz .
     
+    - name: Debug SSH Connection
+      run: |
+        echo "Testing SSH connection parameters..."
+        echo "Host: ${{ secrets.DO_HOST }}"
+        echo "Username: ${{ secrets.DO_USERNAME }}"
+        echo "Port: ${{ secrets.DO_PORT }}"
+        # Check if SSH key is properly formatted (first/last lines)
+        echo "SSH Key format check:"
+        echo "${{ secrets.DO_SSH_KEY }}" | head -1
+        echo "${{ secrets.DO_SSH_KEY }}" | tail -1
+
     - name: Deploy to DigitalOcean
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -72,6 +83,7 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         key: ${{ secrets.DO_SSH_KEY }}
         port: ${{ secrets.DO_PORT }}
+        debug: true
         script: |
           # Backup current production data
           sudo mkdir -p /var/backups/time-management
@@ -101,6 +113,7 @@ jobs:
         port: ${{ secrets.DO_PORT }}
         source: "app.tar.gz"
         target: "/tmp"
+        debug: true
     
     - name: Extract and start application
       uses: appleboy/ssh-action@v1.0.3
@@ -109,6 +122,7 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         key: ${{ secrets.DO_SSH_KEY }}
         port: ${{ secrets.DO_PORT }}
+        debug: true
         script: |
           # Extract new application
           cd /var/www/time-management-app
