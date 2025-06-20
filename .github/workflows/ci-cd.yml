@@ -71,9 +71,19 @@ jobs:
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
         
-        # Write SSH key to file
-        echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+        # Write SSH key to file, preserving line breaks
+        cat > ~/.ssh/deploy_key << 'EOF'
+        ${{ secrets.DO_SSH_KEY }}
+        EOF
         chmod 600 ~/.ssh/deploy_key
+        
+        # Debug: Check key format
+        echo "Key file first line:"
+        head -1 ~/.ssh/deploy_key
+        echo "Key file last line:"
+        tail -1 ~/.ssh/deploy_key
+        echo "Key file line count:"
+        wc -l ~/.ssh/deploy_key
         
         # Add host to known_hosts
         ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
