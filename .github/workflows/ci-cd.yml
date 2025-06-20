@@ -94,11 +94,25 @@ jobs:
     - name: Deploy to DigitalOcean
       run: |
         ssh -i ~/.ssh/deploy_key ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} << 'ENDSSH'
-          # Backup current production data
+          # Backup current production data to local and Google Drive
           sudo mkdir -p /var/backups/time-management
           if [ -f "/mnt/time-management-data/data/tasks.json" ]; then
+            # Local backup (for immediate rollback)
             sudo cp /mnt/time-management-data/data/tasks.json /var/backups/time-management/tasks-$(date +%Y%m%d-%H%M%S).json
             sudo cp /mnt/time-management-data/data/events.json /var/backups/time-management/events-$(date +%Y%m%d-%H%M%S).json
+            
+            # Google Drive backup (off-site storage)
+            if [ -f "/var/www/time-management-app/scripts/gdrive-backup.py" ]; then
+              echo "☁️  Creating Google Drive backup..."
+              cd /var/www/time-management-app
+              python3 scripts/gdrive-backup.py /var/www/time-management-app/google-service-account.json || echo "⚠️  Google Drive backup failed"
+            fi
+            
+            # Clean up old local backups (30-day retention)
+            if [ -f "/var/www/time-management-app/scripts/cleanup-old-backups.sh" ]; then
+              echo "🧹 Cleaning up old backups..."
+              bash /var/www/time-management-app/scripts/cleanup-old-backups.sh --retention-days 30
+            fi
           fi
           
           # Backup current application code
