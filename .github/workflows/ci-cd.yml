@@ -65,26 +65,25 @@ jobs:
         npm ci --omit=dev
         tar -czf ../app.tar.gz .
     
-    - name: Debug SSH Connection
+    - name: Setup SSH Key
       run: |
-        echo "Testing SSH connection parameters..."
-        echo "Host: ${{ secrets.DO_HOST }}"
-        echo "Username: ${{ secrets.DO_USERNAME }}"
-        echo "Port: ${{ secrets.DO_PORT }}"
-        # Check if SSH key is properly formatted (first/last lines)
-        echo "SSH Key format check:"
-        echo "${{ secrets.DO_SSH_KEY }}" | head -1
-        echo "${{ secrets.DO_SSH_KEY }}" | tail -1
+        # Create SSH directory
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        
+        # Write SSH key to file
+        echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Add host to known_hosts
+        ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+        
+        # Test SSH connection
+        ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} "echo 'SSH connection successful'"
 
     - name: Deploy to DigitalOcean
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.DO_HOST }}
-        username: ${{ secrets.DO_USERNAME }}
-        key: ${{ secrets.DO_SSH_KEY }}
-        port: ${{ secrets.DO_PORT }}
-        debug: true
-        script: |
+      run: |
+        ssh -i ~/.ssh/deploy_key ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} << 'ENDSSH'
           # Backup current production data
           sudo mkdir -p /var/backups/time-management
           if [ -f "/mnt/time-management-data/data/tasks.json" ]; then
@@ -103,27 +102,16 @@ jobs:
           cd /var/www/time-management-app
           sudo find . -name "*.js" -o -name "*.html" -o -name "*.css" -o -name "*.json" | grep -v "/data/" | sudo xargs rm -f
           sudo rm -rf node_modules lib css js
+        ENDSSH
     
     - name: Copy files to server
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.DO_HOST }}
-        username: ${{ secrets.DO_USERNAME }}
-        key: ${{ secrets.DO_SSH_KEY }}
-        port: ${{ secrets.DO_PORT }}
-        source: "app.tar.gz"
-        target: "/tmp"
-        debug: true
+      run: |
+        # Copy deployment package to server
+        scp -i ~/.ssh/deploy_key app.tar.gz ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }}:/tmp/
     
     - name: Extract and start application
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.DO_HOST }}
-        username: ${{ secrets.DO_USERNAME }}
-        key: ${{ secrets.DO_SSH_KEY }}
-        port: ${{ secrets.DO_PORT }}
-        debug: true
-        script: |
+      run: |
+        ssh -i ~/.ssh/deploy_key ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} << 'ENDSSH'
           # Extract new application
           cd /var/www/time-management-app
           sudo tar -xzf /tmp/app.tar.gz
@@ -155,3 +143,4 @@ jobs:
           echo "✅ Deployment completed successfully!"
           echo "Frontend: http://143.198.130.100/"
           echo "API: http://143.198.130.100/api/tasks"
+        ENDSSH
