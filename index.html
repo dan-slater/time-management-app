@@ -17,6 +17,7 @@
             <nav class="tab-navigation">
                 <button class="tab-btn active" data-tab="tasks">Tasks</button>
                 <button class="tab-btn" data-tab="shopping">Shopping List</button>
+                <button class="tab-btn" data-tab="calendar">Calendar</button>
             </nav>
         </header>
         
@@ -80,6 +81,39 @@
                         <span>Total: <span id="totalItems">0</span></span>
                         <span>Need to Buy: <span id="pendingItems">0</span></span>
                         <span>Purchased: <span id="purchasedItems">0</span></span>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Calendar Tab Content -->
+            <div id="calendar-tab" class="tab-content">
+                <section class="calendar-controls">
+                    <div class="calendar-header">
+                        <h2>Time Blocking Calendar</h2>
+                        <div class="calendar-navigation">
+                            <button id="prevWeek" class="nav-btn">‹ Previous</button>
+                            <span id="currentWeek" class="current-period">Week of Jan 15, 2024</span>
+                            <button id="nextWeek" class="nav-btn">Next ›</button>
+                        </div>
+                    </div>
+                    <div class="view-controls">
+                        <button class="view-btn active" data-view="week">Week</button>
+                        <button class="view-btn" data-view="day">Day</button>
+                        <button id="addTimeBlockBtn" class="add-block-btn">+ Add Time Block</button>
+                    </div>
+                </section>
+                
+                <section class="calendar-container">
+                    <div id="calendarGrid" class="calendar-grid">
+                        <!-- Calendar grid will be dynamically generated -->
+                    </div>
+                </section>
+                
+                <section class="calendar-stats">
+                    <div class="stats">
+                        <span>Total Blocks: <span id="totalBlocks">0</span></span>
+                        <span>This Week: <span id="weekBlocks">0</span></span>
+                        <span>Completed: <span id="completedBlocks">0</span></span>
                     </div>
                 </section>
             </div>

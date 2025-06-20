@@ -14,6 +14,7 @@ const DATA_DIR = process.env.DATA_PATH ?
 
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const SHOPPING_FILE = path.join(DATA_DIR, 'shopping.json');
+const TIMEBLOCKS_FILE = path.join(DATA_DIR, 'timeblocks.json');
 const historicalData = new HistoricalDataManager(DATA_DIR);
 
 // Middleware
@@ -39,6 +40,13 @@ async function ensureDataFiles() {
             await fs.access(SHOPPING_FILE);
         } catch (error) {
             await fs.writeFile(SHOPPING_FILE, '[]', 'utf8');
+        }
+
+        // Check if timeblocks file exists
+        try {
+            await fs.access(TIMEBLOCKS_FILE);
+        } catch (error) {
+            await fs.writeFile(TIMEBLOCKS_FILE, '[]', 'utf8');
         }
     } catch (error) {
         console.error('Error ensuring data files:', error);
@@ -296,6 +304,131 @@ app.delete('/api/shopping/:id', async (req, res) => {
     }
 });
 
+// Time Blocks API Routes
+async function readTimeBlocks() {
+    try {
+        const data = await fs.readFile(TIMEBLOCKS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error reading time blocks:', error);
+        return [];
+    }
+}
+
+async function writeTimeBlocks(timeBlocks) {
+    try {
+        await fs.writeFile(TIMEBLOCKS_FILE, JSON.stringify(timeBlocks, null, 2), 'utf8');
+        return true;
+    } catch (error) {
+        console.error('Error writing time blocks:', error);
+        return false;
+    }
+}
+
+app.get('/api/timeblocks', async (req, res) => {
+    try {
+        const timeBlocks = await readTimeBlocks();
+        res.json(timeBlocks);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load time blocks' });
+    }
+});
+
+app.post('/api/timeblocks', async (req, res) => {
+    try {
+        const timeBlocks = await readTimeBlocks();
+        const newTimeBlock = {
+            id: Date.now(),
+            title: req.body.title,
+            description: req.body.description || '',
+            startTime: req.body.startTime,
+            endTime: req.body.endTime,
+            date: req.body.date,
+            taskId: req.body.taskId || null,
+            color: req.body.color || '#007aff',
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+        timeBlocks.push(newTimeBlock);
+
+        const success = await writeTimeBlocks(timeBlocks);
+        if (success) {
+            await historicalData.logEvent('timeblock_created', newTimeBlock, getRequestMetadata(req));
+            res.status(201).json(newTimeBlock);
+        } else {
+            res.status(500).json({ error: 'Failed to save time block' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create time block' });
+    }
+});
+
+app.put('/api/timeblocks/:id', async (req, res) => {
+    try {
+        const timeBlocks = await readTimeBlocks();
+        const blockId = parseInt(req.params.id);
+        const blockIndex = timeBlocks.findIndex(b => b.id === blockId);
+
+        if (blockIndex === -1) {
+            return res.status(404).json({ error: 'Time block not found' });
+        }
+
+        const oldBlock = { ...timeBlocks[blockIndex] };
+        timeBlocks[blockIndex] = { ...timeBlocks[blockIndex], ...req.body };
+        if (req.body.completed !== undefined) {
+            timeBlocks[blockIndex].completedAt = req.body.completed ? new Date().toISOString() : null;
+        }
+
+        const success = await writeTimeBlocks(timeBlocks);
+        if (success) {
+            // Log historical event
+            const eventType = req.body.completed !== undefined ?
+                (req.body.completed ? 'timeblock_completed' : 'timeblock_uncompleted') : 'timeblock_updated';
+
+            await historicalData.logEvent(eventType, {
+                id: blockId,
+                oldData: oldBlock,
+                newData: timeBlocks[blockIndex],
+                changes: req.body
+            }, getRequestMetadata(req));
+
+            res.json(timeBlocks[blockIndex]);
+        } else {
+            res.status(500).json({ error: 'Failed to update time block' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update time block' });
+    }
+});
+
+app.delete('/api/timeblocks/:id', async (req, res) => {
+    try {
+        const timeBlocks = await readTimeBlocks();
+        const blockId = parseInt(req.params.id);
+        const blockToDelete = timeBlocks.find(b => b.id === blockId);
+        const filteredBlocks = timeBlocks.filter(b => b.id !== blockId);
+
+        if (filteredBlocks.length === timeBlocks.length) {
+            return res.status(404).json({ error: 'Time block not found' });
+        }
+
+        const success = await writeTimeBlocks(filteredBlocks);
+        if (success) {
+            // Log historical event
+            await historicalData.logEvent('timeblock_deleted', {
+                id: blockId,
+                deletedBlock: blockToDelete
+            }, getRequestMetadata(req));
+
+            res.json({ message: 'Time block deleted successfully' });
+        } else {
+            res.status(500).json({ error: 'Failed to delete time block' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete time block' });
+    }
+});
+
 // Historical data endpoints
 app.get('/api/history/events', async (req, res) => {
     try {
@@ -434,9 +567,10 @@ function convertToCSV(events) {
 // Health check endpoint for DigitalOcean monitoring
 app.get('/health', async (req, res) => {
     try {
-        // Check if we can read tasks and shopping items (tests file system access)
+        // Check if we can read tasks, shopping items, and time blocks (tests file system access)
         await readTasks();
         await readShoppingItems();
+        await readTimeBlocks();
         // Check if historical data system is working
         const events = await historicalData.readEvents();
 
@@ -447,6 +581,7 @@ app.get('/health', async (req, res) => {
             dataDir: DATA_DIR,
             tasksCount: (await readTasks()).length,
             shoppingItemsCount: (await readShoppingItems()).length,
+            timeblocksCount: (await readTimeBlocks()).length,
             eventsCount: events.length
         });
     } catch (error) {
