@@ -127,11 +127,8 @@ jobs:
           sudo tar -xzf /tmp/app.tar.gz
           sudo rm /tmp/app.tar.gz
           
-          # Restore production data from persistent location
-          if [ -d "/mnt/time-management-data/data" ]; then
-            sudo cp /mnt/time-management-data/data/tasks.json ./data/tasks.json
-            sudo cp /mnt/time-management-data/data/events.json ./data/events.json
-          fi
+          # Data is now handled via symbolic link to /mnt/time-management-data/data
+          # No data copying needed - single source of truth
           
           # Set proper permissions
           sudo chown -R www-data:www-data /var/www/time-management-app
